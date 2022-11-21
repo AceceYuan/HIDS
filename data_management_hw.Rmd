@@ -1,0 +1,93 @@
+---
+title: "data management"
+author: "Yuan Lian"
+date: "`r Sys.Date()`"
+output: html_document
+---
+
+
+```{r}
+library(tidyverse)     # loads the tidyverse tools
+library(RPostgres)     # loads the database driver for PostgreSQL
+library(connections)   # helps RPostgres work with RStudio
+library(keyring)       # access to a local encrypted keychain for passwords
+
+# You will need to set your password once here:
+# key_set(service = "syntheticmguh", username = "hids502_student", prompt = "Password: ")
+
+# Note we use "connection_open" rather than "dbConnect", this is to ensure full integration
+# with RStudio in the database pane on the right using the `connections` package.
+con <- connection_open(RPostgres::Postgres(),
+          dbname = "syntheticmguh",
+          host = "35.199.26.47",
+          user = "hids502_student",
+          password = "pursuit-parson-trivial")
+```
+
+
+# Fully de-identified to HIPAA standards
+```{sql connection=con}
+select  DATE_PART('year', birthdate) as birthyear, 
+        AGE(deathdate,birthdate),
+        race, 
+        ethnicity, 
+        gender, 
+        discharge_date-admission_date as delta, 
+        state, 
+        MD5(CAST(medical_record_id AS TEXT)) as medical_id,  
+        MD5(CAST(encounter_id AS TEXT)) as encounter_id, 
+        description, 
+        row_number()over (order by AGE(deathdate,birthdate))
+from inpatientregistry
+
+```
+
+# Limited data set
+```{sql connection=con}
+SELECT birthdate, 
+       deathdate,
+       MD5(CAST(medical_record_id AS TEXT)) as medical_id,
+       race,
+       ethnicity,
+       gender,
+       address, 
+       city, state,county,zip
+       discharge_date, admission_date, 
+       description,  
+       MD5(CAST(encounter_id AS TEXT)) as encounter_id, 
+       row_number() OVER ()
+from inpatientregistry
+
+```
+
+# Demonstrate that your 3 tables are the same using your choice of methods
+1. birthyear and year: each patients has only one birth year that select from their own birthdate as well as the age (for those who dead)
+2. medical_id and encounter_id: return by hash function corresponding to each unique id 
+3. delta: the difference between discharge date and admission date of patients, which have identical time
+
+
+
+# Normalize the table into a patients table and an encounters table
+## patients table
+```{sql connection=con}
+SELECT birthdate,deathdate, first, last, gender, race,ethnicity, address ,city, state, county, zip, medical_record_id
+from inpatientregistry
+
+
+```
+## encounter table
+```{sql connection=con}
+SELECT medical_record_id,encounterclass,encounter_id, discharge_date, admission_date,code,description,reasoncode, reasondescription
+from inpatientregistry
+
+
+```
+
+
+# Lookup table 
+```{sql connection=con}
+select MD5(CAST(CODE AS TEXT) ), description
+from inpatientregistry
+
+```
+

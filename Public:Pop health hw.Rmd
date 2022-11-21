@@ -1,0 +1,97 @@
+---
+title: "Public/Pop health hw"
+author: "Yuan Lian"
+date: "`r Sys.Date()`"
+output: html_document
+editor_options: 
+  markdown: 
+    wrap: 72
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+Introduction
+
+Due to numerous uncoordinated and disconnected data sources and systems,
+the healthcare sector now experiences significant inefficiencies.
+Collaboration is essential to enhance clinical outcome, With the
+availability of digital health data, it is crucial to share healthcare
+data among healthcare organizations to facilitate efficient care
+cooperation, which has the potential to lower healthcare costs and
+improve patient and healthcare worker experiences. Data on all of their
+COVID patients will be shared across MGUH, Sibley, and GW in DC in an
+effort to understand how to provide better clinical treatment. Since
+each hospital has different EMR with different data model and tools, we
+need to connect various storage or record of data, which should be
+standardize or uniformed to break down data barriers and make it easier
+to access and analysis.
+
+Research Methodology
+
+All the patients included who already have covid-19 or come to hospital
+to see whether they got COVID and those who come to take vaccine. from
+the dataset we can get access to those who have have exposure to
+covid-19. Hence the data can include people who already have COVID(the
+record of COVID diagnoses), record of encounter(suspect to have COVID)
+and record of vaccine.
+
+Hence the logic to select these patient can be SELECT, COUNT and then
+GROUP BY, 1)
+
+1.  description like 'COVID' or 'COVID-19','SARS-COV2' in encounters
+
+2.  lab test for sars-cov-2
+
+3.  covid-19 vaccines in Immunizations
+
+4.  corresponding drug (description of medication and reasoncode for why
+    the medication is prescribed) in medication if there's any data
+    exist
+
+Except for the patients ID, we need gender/ age, that will comes from
+Patients table. start and stop time in encounters table, date and
+encounter from Immunization and Medications table and also lab result
+and vital sign from observation table. Based on previous logic, add
+above data into each patients' ID .
+
+Preliminary Suppositions and Implications
+
+Since three hospital use different EMR, the expression or record of each
+feature are different, from our data we have unique identifier of the
+encounter, since there are similar process of record of encounter or
+patient information, information such as
+
+1.  time or date related can be transformed into same time format
+    (dd/mm/yyyy,HH,mm)
+
+2.  string data like age, gender or race can be record in same type such
+    as F/M and abbreviation for each race
+
+3.  id all use UUID hence it can be the same to search, also the same
+    code like SNOMED-CT, Lab code from LONIC, immunization code from CVX
+    also can be used in single data set that grouped by three hospitals,
+    if these three hospital use different code it can be transfer
+    uniformly. (I'm not sure about whether there's a method that used to
+    transform different code)
+
+    Above are most of the data we need and it can be noticed that if all
+    the record can be transform into uniformed data the we can used in a
+    single data set to analysis.
+
+As for the outcome, since it's a clinical care related to COVID-19,
+corresponding examination or comments should be track. First is the test
+of covid-19, which can transparently give an overall result of
+population, from this group level, we can also focus on the features
+such as age, gender or race. On individual level, corresponding
+diagnosis record like symptom record(observation and conditions record)
+, also attached their immunization date for covid and medication record.
+In addition, body condition from Imaging studies/lab report and vital
+sign in Observation can also used in following care.
+
+Conclusion
+
+Collaboration of sharing data enables more accurate tracking and
+analysis of public health data, the integration of information and data
+is an area that needs further consideration.

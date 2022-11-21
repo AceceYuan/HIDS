@@ -1,0 +1,157 @@
+---
+title: "sql and ehr data"
+author: "ansel lian"
+format: 
+  html:
+    self-contained: true
+editor: 
+  markdown: 
+    wrap: 72
+---
+
+```{r}
+#| warning: false
+library(tidyverse)     # loads the tidyverse tools
+library(RPostgres)     # loads the database driver for PostgreSQL
+library(connections)   # helps RPostgres work with RStudio
+library(keyring)       # access to a local encrypted keychain for passwords
+
+# You will need to set your password once here:
+# key_set(service = "syntheticmguh", username = "hids502_student", prompt = "Password: ")
+
+# Note we use "connection_open" rather than "dbConnect", this is to ensure full integration
+# with RStudio in the database pane on the right using the `connections` package.
+con <- connection_open(RPostgres::Postgres(),
+          dbname = "syntheticMGUH2022",
+          host = "35.199.26.47",
+          user = "hids502_student",
+          password = key_get(service = "syntheticmguh", 
+                             username = "hids502_student"),
+          bigint = "numeric")
+
+# Use this to set a default connection for every SQL chunk
+# There seems to be some sort of bug in Quarto that requires this
+knitr::opts_chunk$set(connection = "con")
+```
+
+
+
+Q1: 
+Top three causes of morbidity are heart disease, diabetes and obesity while mortality in the United States are heart disease, cancer, chronic lower respiratory diseases.
+
+In the Synthea data set,except for the first natural death, top3 causes of mortality in US are Chronic congestive heart failure, Myocardial Infarction and stroke.
+
+```{sql connection=con}
+SELECT reasondescription, COUNT(*) as  Causes_of_death
+FROM encounters,observations 
+where  encounters.id=observations.encounter and observations.code='69453-9'
+group by reasondescription
+order by Causes_of_death DESC
+limit 4
+
+```
+
+Q1 top 3 causes of illness in the US
+
+Normal pregnancy can not be considered as illness, hence top3 illness in US are Viral sinusitis, chronic congestive heart failure and acute viral pharyngitis.
+
+```{sql connection=con}
+SELECT '69453-9',reasondescription, COUNT(*) as  Causes_of_illness
+FROM encounters
+group by reasondescription
+order by Causes_of_illness DESC
+limit 5
+
+```
+
+
+
+
+
+Q2: 
+Combined federal and state expenditures for Medicaid accounted for about 16% of U.S. health care spending, and that’s around 699.4 billion. In comparison, Medicare accounted for about 21% and private insurance accounted for about 32% of U.S. health care spending (MACPAC 2021). Reason might be that since covid-19 , government or individuals spend more on health insurance.
+
+sum can be 4957760400, hence for medicaid, breakdown of spending is 13.29%, Medicare is 67.91%, rest is 19.8%
+
+```{sql connection=con}
+SELECT sum(amount_covered)
+FROM payers
+
+```
+
+```{sql connection=con}
+SELECT name,amount_covered
+FROM payers
+
+```
+
+
+
+
+Q3:
+There are 10.9% Americans are estimated to be uninsured in the United States while there’s 9.8% decrease over 15 years.
+reason: the likelihood of being insured may connected to poverty, race, gender and work experience, hence it might be people are more rich now, also there’s more state embrace expanded medicaid programs.
+
+
+
+```{sql connection=con}
+
+select is_sured,year,count(*),year_patients_num,round(count(*)/year_patients_num,2) from (
+select encounters.start,date_part('year', payer_transitions.start_year) as year, encounters.patient,
+count(*) over (partition by date_part('year', payer_transitions.start_year)) as year_patients_num,
+case when payer_transitions.patient is null then 'uninsured' else 'insured' end  as is_sured
+ from encounters
+ join payer_transitions
+on encounters.patient=payer_transitions.patient
+where '2022'-date_part('year', payer_transitions.start_year)<=15
+) aa group by is_sured,year,year_patients_num
+order by year asc,is_sured
+-- where payer_transitions.patient  is null
+
+
+```
+
+```{sql connection=con}
+-- select * from payer_transitions where timestampdiff(year,start_year,now())>=15;
+
+--select timestampdiff('1990-01-02','1992-01-01') from payer_transitions 
+ --select datediff(yy,'2010-06-1 10:10','2012-01-01')
+--select getdate()
+
+select encounters.patient,payer_transitions.patient from encounters
+left join payer_transitions
+on encounters.start between payer_transitions.start_year and payer_transitions.end_year and encounters.patient=payer_transitions.patient
+
+
+select year,buy_insurance_count,
+case 
+when buy_insurance_count-lag(buy_insurance_count,1) over(order by year) >0 then '+' 
+when buy_insurance_count-lag(buy_insurance_count,1) over(order by year) <0 then '-' 
+else null end as plus_or_minus,
+buy_insurance_count-lag(buy_insurance_count,1) over(order by year) as Comparison_num
+from
+(
+select date_part('year', start_year) as year,count(*) as buy_insurance_count  from payer_transitions 
+where '2022'-date_part('year', start_year)<=15
+group by date_part('year', start_year)
+) aa
+order by year desc
+;
+
+```
+
+
+Q4:
+Surprising billing: 
+Someone needs medical attention will typically look for specialists who accept their insurance. Where patients are unable to select the provider who will treat them can unintentionally receive care from an out-of-network provider. Patients may incur a "surprise" out-of-network fee when they obtain care from non-network providers that they did not request. The insurance carrier will frequently provide the out-of-network provider some money.
+
+across the survey there’s around 18.8% had 1 or more potential surprising bill and the range in prices billed with median $1825 and $900
+
+I guess the surprising billing can be similar to the amount_uncovered, that was in table payers
+
+```{sql connection=con}
+SELECT name,amount_uncovered
+FROM payers
+
+```
+

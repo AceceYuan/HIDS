@@ -1,0 +1,128 @@
+---
+title: "CDS_PI_QI_HW"
+author: "Yuan Lian"
+date: "`r Sys.Date()`"
+output: html_document
+---
+
+```{r}
+library(tidyverse)     # loads the tidyverse tools
+library(RPostgres)     # loads the database driver for PostgreSQL
+library(connections)   # helps RPostgres work with RStudio
+library(keyring)       # access to a local encrypted keychain for passwords
+
+# You will need to set your password once here:
+# key_set(service = "syntheticmguh", username = "hids502_student", prompt = "Password: ")
+
+# Note we use "connection_open" rather than "dbConnect", this is to ensure full integration
+# with RStudio in the database pane on the right using the `connections` package.
+con <- connection_open(RPostgres::Postgres(),
+          dbname = "syntheticMGUH2022",
+          host = "35.199.26.47",
+          user = "hids502_student",
+          password = key_get(service = "syntheticmguh", 
+                             username = "hids502_student"),
+          bigint = "numeric")
+
+
+knitr::opts_chunk$set(connection = "con")
+```
+
+# population of asthmatic have one of below criteria
+
+1.  description in conditions table have asthma
+2.  reasondescription in encounters table have asthma
+3.  have asthma care plan in careplan table
+4.  prescribed a "maintenance" inhaler and a "rescue" inhaler in medications table
+
+
+```{sql connection=con}
+CREATE LOCAL TEMPORARY TABLE asthmapatient AS (
+SELECT * FROM patients WHERE id IN
+(
+SELECT  conditions.patient from conditions WHERE conditions.description like '%Asthma%' 
+union
+SELECT  encounters.patient from encounters where encounters.reasondescription like '%Asthma%' 
+union
+SELECT  careplans.patient from careplans where careplans.description like '%Asthma%' and stop is NULL
+union
+SELECT distinct medications.patient from medications WHERE medications.code =895994 or medications.code =2123111 )
+
+ )
+```
+
+# basic demographics of asthma patients
+```{sql connection=con}
+select *from asthmapatient
+
+```
+
+# total number of asthma patients
+```{sql connection=con}
+select count(DISTINCT id) as total_asthma_patients 
+from asthmapatient 
+```
+
+
+# gender
+```{sql connection=con}
+SELECT  gender,count(gender) 
+FROM asthmapatient
+group by gender
+```
+
+# race
+
+```{sql connection=con}
+select race,count(race) 
+from asthmapatient
+group by race
+order by race
+
+```
+
+# ethnicity
+
+```{sql connection=con}
+select ethnicity,count(ethnicity) as num 
+from asthmapatient
+group by ethnicity
+
+
+```
+
+#number of patients have an asthma care plan =1170
+
+proportion:1170/1377
+
+```{sql connection=con}
+SELECT count(distinct asthmapatient.id) as asthma_careplan
+FROM asthmapatient
+LEFT JOIN careplans
+ON asthmapatient.id = careplans.patient
+where  description like '%Asthma%' and stop is NULL
+
+```
+
+#number of patients have a maintenance and rescue inhaler =1377
+
+all patients maintenance and rescue inhaler 
+```{sql connection=con}
+SELECT count(distinct asthmapatient.id) as medication
+FROM asthmapatient
+LEFT JOIN medications
+ON asthmapatient.id = medications.patient
+WHERE medications.code ='895994' or medications.code ='2123111'
+```
+
+#number of patients have have received the vaccination in the preceding 12 months =23
+
+proportion:23/1377
+```{sql connection=con}
+SELECT count(distinct id)
+FROM asthmapatient
+LEFT JOIN immunizations
+ON asthmapatient.id = immunizations.patient
+where immunizations.description='Pneumococcal conjugate PCV 13' and immunizations.date<='2020-9-24' and immunizations.date>='2019-9-24'
+
+```
